@@ -1,0 +1,160 @@
+﻿@page "/teacher/quality"
+@using AdaptiveTesting.Domain.Interfaces
+@using AdaptiveTesting.Infrastructure.Persistence
+@using Microsoft.EntityFrameworkCore
+@inject AppDbContext Db
+@inject IMlService MlService
+@inject NavigationManager Nav
+@rendermode InteractiveServer
+
+<div class="container mt-4">
+    <div class="d-flex align-items-center mb-4">
+        <RadzenButton Icon="arrow_back" ButtonStyle="ButtonStyle.Light" Click="@(() => Nav.NavigateTo("/teacher/monitor"))" Class="me-3" />
+        <div>
+            <h2 class="mb-0">🧠 AI Quality Control: Аналіз питань</h2>
+            <small class="text-muted">Кластеризація питань (K-Means) для виявлення аномалій складності.</small>
+        </div>
+    </div>
+
+    @if (isLoading) {
+        <div class="text-center mt-5">
+            <RadzenProgressBar Mode="ProgressBarMode.Indeterminate" />
+            <p class="mt-2">Збираємо статистику, аналізуємо тексти та складність...</p>
+        </div>
+    } else if (viewModels == null || !viewModels.Any()) {
+        <RadzenCard class="text-center p-5">
+            <RadzenIcon Icon="analytics" Style="font-size: 4rem" class="text-muted mb-3" />
+            <h4>Недостатньо даних</h4>
+            <p>Потрібно більше проходжень тестів, щоб алгоритм міг знайти аномалії.</p>
+        </RadzenCard>
+    } else {
+        <div class="row">
+            <div class="col-md-12">
+                <RadzenCard>
+                    <RadzenDataGrid Data="@viewModels" TItem="QualityViewModel" AllowSorting="true" AllowPaging="true" PageSize="10">
+                        <Columns>
+                            <RadzenDataGridColumn Property="Topic" Title="Тема" Width="120px">
+                                <Template Context="q">
+                                    <RadzenBadge BadgeStyle="BadgeStyle.Light" Text="@q.Topic" class="text-dark" />
+                                </Template>
+                            </RadzenDataGridColumn>
+
+                            <RadzenDataGridColumn Property="QuestionText" Title="Питання">
+                                <Template Context="q">
+                                    <span style="white-space: pre-wrap;">@((MarkupString)q.QuestionText)</span>
+                                </Template>
+                            </RadzenDataGridColumn>
+
+                            <RadzenDataGridColumn Property="Difficulty" Title="Difficulty" Width="100px" TextAlign="TextAlign.Center">
+                                <Template Context="q">
+                                    @q.Difficulty.ToString("F1")
+                                </Template>
+                            </RadzenDataGridColumn>
+
+                            <RadzenDataGridColumn Property="ClusterName" Title="Вердикт AI" Width="200px">
+                                <Template Context="q">
+                                    @if (q.ClusterName.Contains("Harder")) {
+                                        <RadzenBadge BadgeStyle="BadgeStyle.Warning" Text="Harder than expected" />
+                                    } else if (q.ClusterName.Contains("Easier")) {
+                                        <RadzenBadge BadgeStyle="BadgeStyle.Info" Text="Too Easy" />
+                                    } else if (q.ClusterName.Contains("Broken") || q.ClusterName.Contains("Anomaly")) {
+                                        <RadzenBadge BadgeStyle="BadgeStyle.Danger" Text="⚠️ ANOMALY" />
+                                    } else {
+                                        <RadzenBadge BadgeStyle="BadgeStyle.Success" Text="Normal Quality" />
+                                    }
+                                </Template>
+                            </RadzenDataGridColumn>
+                        </Columns>
+                    </RadzenDataGrid>
+                </RadzenCard>
+            </div>
+        </div>
+
+        <div class="alert alert-warning mt-4">
+            <div class="d-flex">
+                <RadzenIcon Icon="info" class="me-3" Style="font-size: 2rem" />
+                <div>
+                    <strong>Як працює цей алгоритм (K-Means):</strong>
+                    Система аналізує 3 параметри: <em>Заявлену складність</em>, <em>Реальний % помилок</em> та <em>Час на відповідь</em>.
+                    <br />
+                    Якщо питання помічене як <strong>Anomaly</strong>, це означає, що статистика відповідей студентів не відповідає очікуванням (наприклад, "легке" питання, де всі помиляються).
+                </div>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    private bool isLoading = true;
+    private List<QualityViewModel>? viewModels;
+
+    protected override async Task OnInitializedAsync() {
+        try {
+            // 1. Завантажуємо дані з БД
+            var allAnswers = await Db.AnswerLogs
+                .AsNoTracking()
+                .Include(a => a.Question)
+                .Where(a => a.Question != null)
+                .ToListAsync();
+
+            if (!allAnswers.Any()) {
+                isLoading = false;
+                return;
+            }
+
+            // 2. Готуємо статистику для Python
+            var stats = allAnswers
+                .GroupBy(a => a.QuestionId)
+                .Select(g => {
+                    var question = g.First().Question;
+                    var total = g.Count();
+                    var errors = g.Count(a => !a.IsCorrect);
+
+                    return new QuestionStatsDto(
+                        g.Key.ToString(),
+                        question.Difficulty,
+                        g.Average(a => a.TimeSpentMs),
+                        (double)errors / total
+                    );
+                })
+                .ToList();
+
+            // 3. Відправляємо в ML
+            var aiResults = await MlService.AnalyzeQuestionQualityAsync(stats);
+
+            // 4. "JOIN" - Поєднуємо результати AI з текстами питань
+            // Створюємо словник для швидкого пошуку тексту питання по ID
+            var questionsInfo = allAnswers
+                .Select(a => a.Question)
+                .DistinctBy(q => q.Id)
+                .ToDictionary(q => q.Id.ToString(), q => new { q.Text, q.Topic, q.Difficulty });
+
+            viewModels = aiResults.Select(r => {
+                // Знаходимо текст питання в словнику
+                questionsInfo.TryGetValue(r.question_id, out var info);
+
+                return new QualityViewModel {
+                    QuestionId = r.question_id,
+                    ClusterName = r.cluster_name,
+                    QuestionText = info?.Text ?? "Unknown Question",
+                    Topic = info?.Topic ?? "General",
+                    Difficulty = info?.Difficulty ?? 0
+                };
+            }).ToList();
+
+        } catch (Exception ex) {
+            Console.WriteLine($"Error: {ex.Message}");
+        } finally {
+            isLoading = false;
+        }
+    }
+
+    // Локальний клас для відображення (View Model)
+    public class QualityViewModel {
+        public string QuestionId { get; set; }
+        public string QuestionText { get; set; }
+        public string Topic { get; set; }
+        public double Difficulty { get; set; }
+        public string ClusterName { get; set; }
+    }
+}

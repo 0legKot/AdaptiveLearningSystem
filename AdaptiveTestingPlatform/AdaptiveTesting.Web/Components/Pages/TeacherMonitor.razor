@@ -1,10 +1,12 @@
 ﻿@page "/teacher/monitor"
+@using AdaptiveTesting.Domain.Interfaces
 @using AdaptiveTesting.Infrastructure.Persistence
 @using Microsoft.EntityFrameworkCore
 @using System.Timers
 @inject IServiceScopeFactory ScopeFactory
 @inject NavigationManager Nav
 @rendermode InteractiveServer
+@inject IMlService MlService
 
 <div class="container-fluid mt-4">
     <div class="d-flex justify-content-between align-items-center mb-4">
@@ -13,7 +15,8 @@
             <RadzenButton Text="🔍 Data Mining Insights" ButtonStyle="ButtonStyle.Info"
                           Click="@(() => Nav.NavigateTo("/teacher/mining"))"
                           class="me-2" Icon="psychology" />
-
+            <RadzenButton Text="Quality Check" Icon="fact_check" ButtonStyle="ButtonStyle.Warning"
+                          Click="@(() => Nav.NavigateTo("/teacher/quality"))" class="me-2" />
             <RadzenButton Text="Експорт звіту" Icon="get_app" ButtonStyle="ButtonStyle.Success" Click="DownloadReport" />
         </div>
     </div>

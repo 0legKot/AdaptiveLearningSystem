@@ -101,6 +101,19 @@ public class PythonMlClient : IMlService {
         }
     }
 
+    public async Task<List<QuestionQualityDto>> AnalyzeQuestionQualityAsync(List<QuestionStatsDto> stats) {
+        try {
+            var response = await _httpClient.PostAsJsonAsync("/analytics/analyze-questions", stats);
+            return await response.Content.ReadFromJsonAsync<List<QuestionQualityDto>>() ?? new();
+        } catch { return new(); }
+    }
+
+    public async Task<Dictionary<string, double>> GetFeatureImportanceAsync() {
+        try {
+            return await _httpClient.GetFromJsonAsync<Dictionary<string, double>>("/prediction/factors-importance") ?? new();
+        } catch { return new(); }
+    }
+
     // Private Response DTOs
     private record PredictionResponse(int predicted_score);
     private record NlpResponse(string? recommended_id, double similarity);

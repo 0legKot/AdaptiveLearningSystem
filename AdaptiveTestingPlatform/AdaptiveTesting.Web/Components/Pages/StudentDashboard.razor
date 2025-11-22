@@ -1,10 +1,12 @@
 ﻿@page "/dashboard/{UserId:guid}"
+@using AdaptiveTesting.Domain.Interfaces
 @using AdaptiveTesting.Infrastructure.Services
 @using Radzen
 @using Radzen.Blazor
 @inject AnalyticsService Analytics
 @inject NavigationManager Nav
 @rendermode InteractiveServer
+@inject IMlService MlService
 
 <div class="container mt-4">
     @if (stats == null) {
@@ -116,9 +118,11 @@
 @code {
     [Parameter] public Guid UserId { get; set; }
     private StudentDashboardDto? stats;
+    Dictionary<string, double> factors = new();
 
     protected override async Task OnInitializedAsync() {
         stats = await Analytics.GetStudentStatsAsync(UserId);
+        factors = await MlService.GetFeatureImportanceAsync();
     }
 
     private string MarkdownToHtml(string text) {

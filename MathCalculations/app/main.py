@@ -1,6 +1,11 @@
 from fastapi import FastAPI
 from app.schemas import *
-from app.services import adaptive, anticheat, mining, nlp, prediction
+from app.services.adaptive import calculate_bkt
+from app.services.anticheat import detector
+from app.services.mining import mine_rules
+from app.services.nlp import find_similar_question
+from app.services.prediction import predictor
+from app.services.quality_analysis import analyzer as quality_analyzer
 from sklearn.cluster import KMeans
 from sklearn.preprocessing import StandardScaler
 import pandas as pd
@@ -8,41 +13,44 @@ import pandas as pd
 app = FastAPI(title="Adaptive Learning ML Core")
 
 
-# 1. Adaptive Testing (BKT)
+@app.on_event("startup")
+async def startup_event():
+    print("ML Services are warm and ready.")
+
+
+# 1. BKT (Simple function is fine)
 @app.post("/adaptive/predict-knowledge")
 def endpoint_bkt(data: BktRequest):
-    res = adaptive.calculate_bkt(data.p_known, data.is_correct)
+    res = calculate_bkt(data.p_known, data.is_correct)
     return {"new_theta": round(res, 4)}
 
 
-# 2. Anti-Cheat (Isolation Forest)
+# 2. Anti-Cheat (Uses Pre-trained Isolation Forest)
 @app.post("/security/detect-cheating")
 def endpoint_cheating(data: CheatingRequest):
-    is_suspicious = anticheat.detect_anomaly(data.time_spent_ms, data.focus_lost_count)
+    is_suspicious = detector.detect(data.time_spent_ms, data.focus_lost_count)
     return {"is_suspicious": is_suspicious}
 
 
-# 3. NLP Recommendations
+# 3. NLP
 @app.post("/nlp/similar-question")
 def endpoint_nlp(data: NlpRequest):
-    # Перетворюємо Pydantic models в dicts
     candidates = [c.dict() for c in data.candidate_questions]
-    result = nlp.find_similar_question(data.failed_question_text, candidates)
+    result = find_similar_question(data.failed_question_text, candidates)
     return result if result else {"recommended_id": None}
 
 
-# 4. Data Mining (Association Rules)
+# 4. Mining
 @app.post("/mining/rules")
 def endpoint_mining(history: List[HistoryItem]):
-    # Convert to list of dicts
     data = [h.dict() for h in history]
-    return mining.mine_rules(data)
+    return mine_rules(data)
 
 
-# 5. Predictive Analytics
+# 5. Prediction Score (Uses Pre-trained Linear Regression)
 @app.post("/prediction/final-score")
 def endpoint_prediction(data: PredictionData):
-    score = prediction.predict_final_grade(
+    score = predictor.predict_final_grade(
         data.avg_time_per_question,
         data.current_score_percent,
         data.focus_lost_count
@@ -50,7 +58,20 @@ def endpoint_prediction(data: PredictionData):
     return {"predicted_score": score}
 
 
-# 6. Clustering (Залишили тут, бо простий)
+# 6. Feature Importance (NEW: Random Forest Analysis)
+@app.get("/prediction/factors-importance")
+def endpoint_factors():
+    return predictor.get_feature_importance()
+
+
+# 7. Question Quality (NEW: K-Means for Questions)
+@app.post("/analytics/analyze-questions")
+def endpoint_question_quality(questions: List[QuestionStatsRequest]):
+    data = [q.dict() for q in questions]
+    return quality_analyzer.analyze(data)
+
+
+# 8. Student Clustering
 @app.post("/analytics/cluster-students")
 def endpoint_clustering(students: List[ClusteringRequest]):
     if not students: return []
