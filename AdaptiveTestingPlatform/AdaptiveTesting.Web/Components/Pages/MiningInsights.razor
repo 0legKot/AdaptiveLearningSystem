@@ -1,0 +1,97 @@
+﻿@page "/teacher/mining"
+@using AdaptiveTesting.Domain.Interfaces
+@using AdaptiveTesting.Infrastructure.Persistence
+@using Microsoft.EntityFrameworkCore
+@inject AppDbContext Db
+@inject IMlService MlService
+@inject NavigationManager Nav
+@rendermode InteractiveServer
+
+<div class="container mt-4">
+    <div class="d-flex align-items-center mb-4">
+        <RadzenButton Icon="arrow_back" ButtonStyle="ButtonStyle.Light" Click="@(() => Nav.NavigateTo("/teacher/monitor"))" Class="me-3" />
+        <div>
+            <h2 class="mb-0">🧠 Data Mining: Пошук прихованих зв'язків</h2>
+            <small class="text-muted">Використання алгоритму <strong>Apriori</strong> для виявлення залежностей між помилками студентів.</small>
+        </div>
+    </div>
+
+    @if (isLoading) {
+        <div class="text-center mt-5">
+            <RadzenProgressBar Mode="ProgressBarMode.Indeterminate" />
+            <p class="mt-2">ML-модель аналізує історію відповідей...</p>
+        </div>
+    } else if (rules == null || !rules.Any()) {
+        <RadzenCard class="text-center p-5">
+            <RadzenIcon Icon="search_off" Style="font-size: 4rem" class="text-muted mb-3" />
+            <h4>Асоціацій не знайдено</h4>
+            <p>Спробуйте накопичити більше даних (пройдіть більше тестів).</p>
+        </RadzenCard>
+    } else {
+        <div class="row">
+            <div class="col-md-12">
+                <RadzenCard>
+                    <h4 class="mb-4">Знайдені правила (Association Rules)</h4>
+
+                    <RadzenDataGrid Data="@rules" TItem="MiningRule" AllowSorting="true" ColumnWidth="300px">
+                        <Columns>
+                            <RadzenDataGridColumn Property="rule" Title="Правило (Якщо -> То)">
+                                <Template Context="r">
+                                    <span style="font-size: 1.1em; font-weight: 500;">@r.rule</span>
+                                </Template>
+                            </RadzenDataGridColumn>
+
+                            <RadzenDataGridColumn Property="confidence" Title="Ймовірність (Confidence)" Width="250px">
+                                <Template Context="r">
+                                    <div class="d-flex align-items-center">
+                                        <div style="flex-grow: 1; margin-right: 15px;">
+                                            <RadzenProgressBar Value="@(r.confidence * 100)" Max="100" ShowValue="false" Style="height: 20px" />
+                                        </div>
+                                        <span class="fw-bold">@((r.confidence * 100).ToString("F1"))%</span>
+                                    </div>
+                                </Template>
+                            </RadzenDataGridColumn>
+                        </Columns>
+                    </RadzenDataGrid>
+                </RadzenCard>
+            </div>
+        </div>
+
+        <div class="alert alert-info mt-4">
+            <strong>Як це працює:</strong> Якщо система бачить правило "Помилка в SQL -> Помилка в LINQ" з ймовірністю 80%, це означає, що 80% студентів, які не знають SQL, також провалюють тести по LINQ. Ви можете використовувати це для корегування навчальної програми.
+        </div>
+    }
+</div>
+
+@code {
+    private bool isLoading = true;
+    private List<MiningRule>? rules;
+
+    protected override async Task OnInitializedAsync() {
+        try {
+            // 1. Збираємо дані
+            var rawHistory = await Db.TestSessions
+                .Include(s => s.Answers).ThenInclude(a => a.Question)
+                .Where(s => s.FinishedAt != null)
+                .ToListAsync();
+
+            var historyItems = rawHistory.Select(s => new StudentHistoryItem(
+                s.UserId.ToString(),
+                s.Answers.Where(a => !a.IsCorrect)
+                         .Select(a => a.Question.Topic)
+                         .Where(t => !string.IsNullOrEmpty(t))
+                         .Distinct()
+                         .ToList()
+            )).ToList();
+
+            // 2. Викликаємо ML
+            if (historyItems.Any()) {
+                rules = await MlService.GetMiningRulesAsync(historyItems);
+            }
+        } catch (Exception ex) {
+            Console.WriteLine($"Error: {ex.Message}");
+        } finally {
+            isLoading = false;
+        }
+    }
+}

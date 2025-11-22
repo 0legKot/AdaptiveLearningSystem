@@ -1,0 +1,51 @@
+﻿@page "/analytics-selector"
+@using AdaptiveTesting.Domain.Entities
+@using AdaptiveTesting.Infrastructure.Persistence
+@using Microsoft.EntityFrameworkCore
+@inject AppDbContext Db
+@inject NavigationManager Nav
+@rendermode InteractiveServer
+
+<div class="container mt-4">
+    <RadzenCard>
+        <h3>📊 Оберіть студента для перегляду звіту</h3>
+        <p class="text-muted">Тут ви можете переглянути результати ML-аналізу для будь-якого користувача.</p>
+
+        <RadzenDataGrid Data="@users" TItem="User" AllowPaging="true" PageSize="10" AllowSorting="true">
+            <Columns>
+                <RadzenDataGridColumn Property="FullName" Title="Ім'я" />
+                <RadzenDataGridColumn Property="Role" Title="ML Cluster (Прогноз)" Width="200px">
+                    <Template Context="user">
+                        @if (user.ClusterLabel == 0) {
+                            <span class="badge bg-danger">Cheater</span>
+                        } else if (user.ClusterLabel == 1) {
+
+                            <span class="badge bg-warning text-dark">Junior</span>
+                        } else {
+
+                            <span class="badge bg-success">Senior</span>
+                        }
+                    </Template>
+                </RadzenDataGridColumn>
+                <RadzenDataGridColumn Title="" Width="160px">
+                    <Template Context="user">
+                        <RadzenButton Text="Звіт" Icon="assessment" ButtonStyle="ButtonStyle.Info"
+                                      Click="@(() => OpenDashboard(user.Id))" Size="ButtonSize.Small" />
+                    </Template>
+                </RadzenDataGridColumn>
+            </Columns>
+        </RadzenDataGrid>
+    </RadzenCard>
+</div>
+
+@code {
+    List<User> users = new();
+
+    protected override async Task OnInitializedAsync() {
+        users = await Db.Users.OrderBy(u => u.FullName).ToListAsync();
+    }
+
+    void OpenDashboard(Guid userId) {
+        Nav.NavigateTo($"/dashboard/{userId}");
+    }
+}

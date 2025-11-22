@@ -1,0 +1,127 @@
+﻿@page "/dashboard/{UserId:guid}"
+@using AdaptiveTesting.Infrastructure.Services
+@using Radzen
+@using Radzen.Blazor
+@inject AnalyticsService Analytics
+@inject NavigationManager Nav
+@rendermode InteractiveServer
+
+<div class="container mt-4">
+    @if (stats == null) {
+        <RadzenProgressBar Mode="ProgressBarMode.Indeterminate" />
+    } else {
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h3>📊 Аналітика: @stats.StudentName</h3>
+            <RadzenButton Text="Пройти ще один тест" Icon="add_task" Click="@(() => Nav.NavigateTo($"/exam/{UserId}"))" />
+        </div>
+
+        <div class="row mb-4">
+            <div class="col-12">
+                <RadzenCard Variant="Variant.Filled" Class="bg-primary-subtle">
+                    <div class="d-flex align-items-center justify-content-between px-4">
+                        <div>
+                            <h6 class="text-primary mb-1">AI Прогноз фінальної оцінки (Linear Regression)</h6>
+                            <h1 class="display-3 text-primary fw-bold mb-0">@stats.PredictedScore</h1>
+                            <small class="text-muted">Розраховано на основі динаміки ваших відповідей, часу реакції та концентрації.</small>
+                        </div>
+                        <RadzenArcGauge Style="width: 200px; height: 200px;">
+                            <RadzenArcGaugeScale Step="20" Min="0" Max="100" TickPosition="GaugeTickPosition.Inside" Radius="1.5">
+                                <RadzenArcGaugeScaleValue Value="@stats.PredictedScore" ShowValue="false" Fill="#4f46e5" />
+                            </RadzenArcGaugeScale>
+                        </RadzenArcGauge>
+                    </div>
+                </RadzenCard>
+            </div>
+        </div>
+
+        <div class="row">
+            <div class="col-md-7 mb-4">
+                <RadzenCard>
+                    <h4 class="mb-3">Карта навичок (Skill Map)</h4>
+                    @if (stats.Skills.Any()) {
+                        <RadzenChart Style="height: 400px">
+                            <RadzenBarSeries Data="@stats.Skills"
+                                             CategoryProperty="Topic"
+                                             Title="Рівень знань (%)"
+                                             ValueProperty="Score"
+                                             Fill="#4f46e5">
+                                <RadzenSeriesDataLabels Visible="true" />
+                            </RadzenBarSeries>
+                            <RadzenValueAxis Min="0" Max="100" Step="20">
+                                <RadzenGridLines Visible="true" />
+                            </RadzenValueAxis>
+                            <RadzenCategoryAxis Padding="0.2" />
+                            <RadzenLegend Visible="false" />
+                        </RadzenChart>
+                    } else {
+                        <p class="text-muted">Немає даних. Пройдіть тест, щоб побачити графік.</p>
+                    }
+                </RadzenCard>
+            </div>
+
+            <div class="col-md-5 mb-4">
+                <RadzenCard class="h-100">
+                    <h4 class="mb-3">Профіль ML</h4>
+
+                    <div class="alert alert-info">
+                        <strong>AI Cluster (K-Means):</strong>
+                        @if (stats.ClusterLabel == 0) {
+                            <span>Підозріла активність (Cheater pattern)</span>
+                        } else if (stats.ClusterLabel == 1) {
+
+                            <span>Початківець (Junior pattern)</span>
+                        } else if (stats.ClusterLabel == 2) {
+
+                            <span>Експерт (Senior pattern)</span>
+                        } else {
+
+                            <span>Не визначено</span>
+                        }
+                    </div>
+
+                    <h5 class="mt-4">Останні сесії (Isolation Forest)</h5>
+                    <ul class="list-group">
+                        @foreach (var session in stats.RecentSessions) {
+                            <li class="list-group-item d-flex justify-content-between align-items-center">
+                                <span>@session.Date.ToString("g")</span>
+                                @if (session.IsSuspicious) {
+                                    <RadzenBadge BadgeStyle="BadgeStyle.Danger" Text="Anomaly Detected" />
+                                } else {
+                                    <RadzenBadge BadgeStyle="BadgeStyle.Success" Text="OK" />
+                                }
+                            </li>
+                        }
+                    </ul>
+                </RadzenCard>
+            </div>
+        </div>
+
+        <div class="row">
+            <div class="col-12">
+                <RadzenCard>
+                    <h4 class="mb-3">💡 Персональні рекомендації (NLP Content-Based)</h4>
+                    <div class="list-group">
+                        @foreach (var rec in stats.Recommendations) {
+                            <div class="list-group-item">
+                                @((MarkupString)MarkdownToHtml(rec))
+                            </div>
+                        }
+                    </div>
+                </RadzenCard>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter] public Guid UserId { get; set; }
+    private StudentDashboardDto? stats;
+
+    protected override async Task OnInitializedAsync() {
+        stats = await Analytics.GetStudentStatsAsync(UserId);
+    }
+
+    private string MarkdownToHtml(string text) {
+        return text.Replace("**", "<strong>").Replace("⚠️", "<span class='text-danger'>⚠️</span>").Replace("✅", "<span class='text-success'>✅</span>");
+    }
+}

@@ -1,0 +1,138 @@
+﻿@page "/teacher/monitor"
+@using AdaptiveTesting.Infrastructure.Persistence
+@using Microsoft.EntityFrameworkCore
+@using System.Timers
+@inject IServiceScopeFactory ScopeFactory
+@inject NavigationManager Nav
+@rendermode InteractiveServer
+
+<div class="container-fluid mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2>👨‍🏫 Панель Викладача (Real-time)</h2>
+        <div>
+            <RadzenButton Text="🔍 Data Mining Insights" ButtonStyle="ButtonStyle.Info"
+                          Click="@(() => Nav.NavigateTo("/teacher/mining"))"
+                          class="me-2" Icon="psychology" />
+
+            <RadzenButton Text="Експорт звіту" Icon="get_app" ButtonStyle="ButtonStyle.Success" Click="DownloadReport" />
+        </div>
+    </div>
+
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <RadzenCard>
+                <h4 class="text-muted">Активних сесій</h4>
+                <h2 class="text-primary">@activeCount</h2>
+            </RadzenCard>
+        </div>
+        <div class="col-md-3">
+            <RadzenCard>
+                <h4 class="text-muted">Завершено сьогодні</h4>
+                <h2 class="text-success">@finishedCount</h2>
+            </RadzenCard>
+        </div>
+        <div class="col-md-3">
+            <RadzenCard>
+                <h4 class="text-muted">Виявлено підозр</h4>
+                <h2 class="text-danger">@suspiciousCount</h2>
+            </RadzenCard>
+        </div>
+    </div>
+
+    <RadzenDataGrid Data="@sessions" TItem="SessionMonitorDto" AllowSorting="true" AllowPaging="true" PageSize="15">
+        <Columns>
+            <RadzenDataGridColumn Property="StudentName" Title="Студент" Width="200px" />
+            <RadzenDataGridColumn Title="Статус" Width="120px">
+                <Template Context="s">
+                    @if (s.IsFinished) {
+                        <RadzenBadge BadgeStyle="BadgeStyle.Success" Text="Завершено" />
+                    } else {
+                        <RadzenBadge BadgeStyle="BadgeStyle.Info" Text="У процесі" IsPill="true" />
+                    }
+                </Template>
+            </RadzenDataGridColumn>
+            <RadzenDataGridColumn Title="Anti-Cheat" Width="180px">
+                <Template Context="s">
+                    @if (s.IsSuspicious) {
+                        <RadzenBadge BadgeStyle="BadgeStyle.Danger" Text="⚠️ АНОМАЛІЯ" />
+                    } else {
+                        <RadzenBadge BadgeStyle="BadgeStyle.Light" Text="OK" class="text-dark" />
+                    }
+                </Template>
+            </RadzenDataGridColumn>
+            <RadzenDataGridColumn Title="Прогрес" Width="150px">
+                <Template Context="s">
+                    <RadzenProgressBar Value="@(s.QuestionsAnswered * 10)" Max="100" ShowValue="false" Style="height: 10px" />
+                    <span class="small text-muted">@s.QuestionsAnswered / 10</span>
+                </Template>
+            </RadzenDataGridColumn>
+            <RadzenDataGridColumn Title="Дії" Width="80px">
+                <Template Context="s">
+                    <RadzenButton Icon="analytics" Size="ButtonSize.Small" Click="@(() => Nav.NavigateTo($"/dashboard/{s.StudentId}"))" />
+                </Template>
+            </RadzenDataGridColumn>
+        </Columns>
+    </RadzenDataGrid>
+</div>
+
+@code {
+    private Timer? _timer;
+    private List<SessionMonitorDto> sessions = new();
+    private int activeCount = 0, finishedCount = 0, suspiciousCount = 0;
+
+    protected override async Task OnInitializedAsync() {
+        await RefreshData();
+        _timer = new Timer(3000);
+        _timer.Elapsed += async (sender, e) => {
+            await InvokeAsync(async () => {
+                await RefreshData();
+                StateHasChanged();
+            });
+        };
+        _timer.Start();
+    }
+
+    private async Task RefreshData() {
+        using (var scope = ScopeFactory.CreateScope()) {
+            var scopedDb = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+            var rawData = await scopedDb.TestSessions
+                .AsNoTracking()
+                .Include(s => s.User)
+                .Include(s => s.Answers)
+                .Where(s => s.StartedAt > DateTime.Now.AddDays(-1))
+                .OrderByDescending(s => s.StartedAt)
+                .ToListAsync();
+
+            sessions = rawData.Select(s => new SessionMonitorDto {
+                StudentId = s.UserId,
+                StudentName = s.User?.FullName ?? "Unknown",
+                IsFinished = s.FinishedAt.HasValue,
+                IsSuspicious = s.IsSuspicious,
+                QuestionsAnswered = s.Answers.Count,
+                FocusLost = s.Answers.Sum(a => a.FocusLostEvents),
+                FinalScore = s.Answers.Any() ? (int)((double)s.Answers.Count(a => a.IsCorrect) / s.Answers.Count * 100) : 0
+            }).ToList();
+
+            activeCount = sessions.Count(s => !s.IsFinished);
+            finishedCount = sessions.Count(s => s.IsFinished);
+            suspiciousCount = sessions.Count(s => s.IsSuspicious);
+        }
+    }
+
+    private void DownloadReport() {
+        Nav.NavigateTo("/api/export/results", forceLoad: true);
+    }
+
+    public void Dispose() => _timer?.Dispose();
+
+    public class SessionMonitorDto {
+        public Guid StudentId { get; set; }
+        public string StudentName { get; set; }
+        public bool IsFinished { get; set; }
+        public bool IsSuspicious { get; set; }
+        public int QuestionsAnswered { get; set; }
+        public int FocusLost { get; set; }
+        public int FinalScore { get; set; }
+    }
+}

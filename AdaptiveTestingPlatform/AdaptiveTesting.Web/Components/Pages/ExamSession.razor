@@ -1,0 +1,181 @@
+﻿@page "/exam/{UserId:guid}"
+@using AdaptiveTesting.Domain.Entities
+@using AdaptiveTesting.Infrastructure.Services
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
+@inject TestEngineService Engine
+@inject NavigationManager Nav
+@inject IJSRuntime JS
+
+<div class="container mt-4" style="max-width: 800px;">
+    @if (currentQuestion == null) {
+        if (isFinished) {
+            <RadzenCard class="text-center p-5">
+                <h1 class="text-success display-4">🎉</h1>
+                <h2 class="text-success">Тест завершено!</h2>
+                <p class="lead">Система проаналізувала ваші результати.</p>
+                <div class="mt-4">
+                    <RadzenButton Text="Перейти до Аналітики" Click="@(() => Nav.NavigateTo($"/dashboard/{UserId}"))"
+                                  ButtonStyle="ButtonStyle.Success" Size="ButtonSize.Large" Icon="analytics" />
+                </div>
+            </RadzenCard>
+        } else {
+            <div class="text-center mt-5">
+                <RadzenProgressBar Value="100" ShowValue="false" Mode="ProgressBarMode.Indeterminate" />
+                <p class="mt-3 text-muted">Штучний інтелект підбирає оптимальне питання...</p>
+            </div>
+        }
+    } else {
+        <RadzenCard>
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <RadzenBadge BadgeStyle="BadgeStyle.Info" Text="@currentQuestion.Topic" IsPill="true" class="fs-6" />
+                <div class="text-muted small">
+                    Рейтинг складності: <strong>@currentQuestion.Difficulty.ToString("F1")</strong>
+                </div>
+            </div>
+
+            <h4 class="mb-4">@((MarkupString)currentQuestion.Text)</h4>
+
+            <div class="mb-4">
+                @for (int i = 0; i < options.Count; i++) {
+                    var idx = i;
+                    string rowClass = "p-3 border rounded mb-2 d-flex align-items-center cursor-pointer";
+
+                    // Логіка підсвітки
+                    if (isAnswered) {
+                        if (idx == currentQuestion.CorrectOptionIndex) rowClass += " bg-success-subtle border-success";
+                        else if (idx == selectedOption && idx != currentQuestion.CorrectOptionIndex) rowClass += " bg-danger-subtle border-danger";
+                        else rowClass += " opacity-50";
+                    } else if (selectedOption == idx) {
+                        // Підсвітка вибору до відправки
+                        rowClass += " border-primary bg-light";
+                    }
+
+                    <div class="@rowClass" @onclick="() => SelectOption(idx)">
+                        @* ВИПРАВЛЕНО: Використовуємо стандартний input замість RadzenRadioButton для уникнення конфлікту *@
+                        <input type="radio"
+                               name="options"
+                               checked="@(selectedOption == idx)"
+                               class="form-check-input me-2"
+                               style="transform: scale(1.2); cursor: pointer;"
+                               disabled="@isAnswered" />
+
+                        <span class="ms-2 user-select-none">@options[idx]</span>
+
+                        @if (isAnswered && idx == currentQuestion.CorrectOptionIndex) {
+                            <span class="ms-auto text-success fw-bold">✔ Correct</span>
+                        }
+                    </div>
+                }
+            </div>
+
+            <div class="d-flex justify-content-between align-items-center border-top pt-3">
+                <div>
+                    @if (isAnswered) {
+                        @if (lastAnswerWasCorrect) {
+                            <span class="text-success fw-bold"><RadzenIcon Icon="check_circle" /> Відповідь правильна!</span>
+                        } else {
+                            <span class="text-danger fw-bold"><RadzenIcon Icon="cancel" /> Помилка.</span>
+                        }
+                        <span class="text-muted ms-2 small">(ML оновлює ваш профіль...)</span>
+                    }
+                </div>
+
+                @if (!isAnswered) {
+                    <RadzenButton Text="Відповісти" Click="SubmitAnswer" Disabled="@(selectedOption == -1)" IsBusy="@isBusy" Icon="send" />
+                } else {
+                    <RadzenButton Text="Наступне питання" Click="LoadNextQuestionData" ButtonStyle="ButtonStyle.Secondary" Icon="arrow_forward" />
+                }
+            </div>
+        </RadzenCard>
+    }
+</div>
+
+<script>
+    window.examTracker = {
+        startTime: Date.now(),
+        focusLostCount: 0,
+        startTimer: function() {
+            this.startTime = Date.now();
+            this.focusLostCount = 0;
+            window.onblur = () => { this.focusLostCount++; console.log("Focus lost"); };
+        },
+        getMetrics: function() {
+            window.onblur = null;
+            return {
+                timeSpent: Date.now() - this.startTime,
+                focusLost: this.focusLostCount
+            };
+        }
+    };
+</script>
+
+@code {
+    [Parameter] public Guid UserId { get; set; }
+
+    private TestSession? session;
+    private Question? currentQuestion;
+    private List<string> options = new();
+    private int selectedOption = -1;
+
+    private bool isFinished = false;
+    private bool isBusy = false;
+    private bool isAnswered = false;
+    private bool lastAnswerWasCorrect = false;
+
+    protected override async Task OnInitializedAsync() {
+        session = await Engine.StartSessionAsync(UserId);
+        await LoadNextQuestionData();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender) {
+        if (firstRender && currentQuestion != null) {
+            await StartTimer();
+        }
+    }
+
+    private async Task LoadNextQuestionData() {
+        isAnswered = false;
+        selectedOption = -1;
+
+        currentQuestion = await Engine.GetNextQuestionAsync(UserId, session.Id);
+
+        if (currentQuestion == null) {
+            isFinished = true;
+            await Engine.FinishSessionAsync(session.Id);
+        } else {
+            options = System.Text.Json.JsonSerializer.Deserialize<List<string>>(currentQuestion.OptionsJson) ?? new();
+            await StartTimer();
+        }
+    }
+
+    private void SelectOption(int index) {
+        if (!isAnswered) selectedOption = index;
+    }
+
+    private async Task SubmitAnswer() {
+        isBusy = true;
+
+        // Отримання метрик
+        var metrics = await JS.InvokeAsync<ExamMetrics>("examTracker.getMetrics");
+        int timeSpentInt = (int)metrics.timeSpent;
+        if (metrics.timeSpent > int.MaxValue || metrics.timeSpent < 0) timeSpentInt = 1000;
+
+        // Відправка
+        await Engine.SubmitAnswerAsync(session.Id, currentQuestion.Id, selectedOption, timeSpentInt, metrics.focusLost);
+
+        lastAnswerWasCorrect = (selectedOption == currentQuestion.CorrectOptionIndex);
+        isAnswered = true;
+        isBusy = false;
+
+        StateHasChanged();
+    }
+
+    private async Task StartTimer() {
+        try { await JS.InvokeVoidAsync("examTracker.startTimer"); } catch { }
+    }
+
+    public class ExamMetrics {
+        public double timeSpent { get; set; }
+        public int focusLost { get; set; }
+    }
+}
