@@ -4,6 +4,9 @@ from typing import List, Optional, Dict
 class BktRequest(BaseModel):
     p_known: float
     is_correct: bool
+    difficulty: float
+    total_options: int = 4
+    topic: str
 
 class CheatingRequest(BaseModel):
     time_spent_ms: int
@@ -31,7 +34,6 @@ class PredictionData(BaseModel):
     current_score_percent: float
     focus_lost_count: int
 
-# --- НОВЕ ДЛЯ ЯКОСТІ ПИТАНЬ ---
 class QuestionStatsRequest(BaseModel):
     question_id: str
     difficulty_declared: float

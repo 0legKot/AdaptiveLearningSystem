@@ -12,7 +12,7 @@
         <RadzenButton Icon="arrow_back" ButtonStyle="ButtonStyle.Light" Click="@(() => Nav.NavigateTo("/teacher/monitor"))" Class="me-3" />
         <div>
             <h2 class="mb-0">🧠 Data Mining: Пошук прихованих зв'язків</h2>
-            <small class="text-muted">Використання алгоритму <strong>Apriori</strong> для виявлення залежностей між помилками студентів.</small>
+            <small class="text-muted">Використання алгоритму <strong>Apriori</strong> (Metric: Lift > 1.1).</small>
         </div>
     </div>
 
@@ -31,24 +31,32 @@
         <div class="row">
             <div class="col-md-12">
                 <RadzenCard>
-                    <h4 class="mb-4">Знайдені правила (Association Rules)</h4>
-
-                    <RadzenDataGrid Data="@rules" TItem="MiningRule" AllowSorting="true" ColumnWidth="300px">
+                    <RadzenDataGrid Data="@rules" TItem="MiningRule" AllowSorting="true" ColumnWidth="200px">
                         <Columns>
-                            <RadzenDataGridColumn Property="rule" Title="Правило (Якщо -> То)">
+                            <RadzenDataGridColumn Property="rule" Title="Правило (Якщо -> То)" Width="400px">
                                 <Template Context="r">
                                     <span style="font-size: 1.1em; font-weight: 500;">@r.rule</span>
                                 </Template>
                             </RadzenDataGridColumn>
 
-                            <RadzenDataGridColumn Property="confidence" Title="Ймовірність (Confidence)" Width="250px">
+                            <RadzenDataGridColumn Property="lift" Title="Lift (Сила)" Width="120px">
+                                <Template Context="r">
+                                    <RadzenBadge BadgeStyle="BadgeStyle.Secondary" Text="@r.lift.ToString("F2")" />
+                                </Template>
+                            </RadzenDataGridColumn>
+
+                            <RadzenDataGridColumn Property="confidence" Title="Confidence" Width="150px">
                                 <Template Context="r">
                                     <div class="d-flex align-items-center">
-                                        <div style="flex-grow: 1; margin-right: 15px;">
-                                            <RadzenProgressBar Value="@(r.confidence * 100)" Max="100" ShowValue="false" Style="height: 20px" />
-                                        </div>
-                                        <span class="fw-bold">@((r.confidence * 100).ToString("F1"))%</span>
+                                        <RadzenProgressBar Value="@(r.confidence * 100)" Max="100" ShowValue="false" Style="height: 10px; width: 60px; margin-right: 10px" />
+                                        <span>@((r.confidence * 100).ToString("F0"))%</span>
                                     </div>
+                                </Template>
+                            </RadzenDataGridColumn>
+
+                            <RadzenDataGridColumn Property="support" Title="Support" Width="100px">
+                                <Template Context="r">
+                                    @((r.support * 100).ToString("F1"))%
                                 </Template>
                             </RadzenDataGridColumn>
                         </Columns>
@@ -58,7 +66,12 @@
         </div>
 
         <div class="alert alert-info mt-4">
-            <strong>Як це працює:</strong> Якщо система бачить правило "Помилка в SQL -> Помилка в LINQ" з ймовірністю 80%, це означає, що 80% студентів, які не знають SQL, також провалюють тести по LINQ. Ви можете використовувати це для корегування навчальної програми.
+            <strong>Як читати метрики:</strong>
+            <ul>
+                <li><strong>Lift > 1:</strong> Позитивна кореляція (теми пов'язані).</li>
+                <li><strong>Confidence:</strong> Ймовірність того, що правило спрацює.</li>
+                <li><strong>Support:</strong> Як часто це трапляється серед усіх студентів.</li>
+            </ul>
         </div>
     }
 </div>
@@ -69,7 +82,6 @@
 
     protected override async Task OnInitializedAsync() {
         try {
-            // 1. Збираємо дані
             var rawHistory = await Db.TestSessions
                 .Include(s => s.Answers).ThenInclude(a => a.Question)
                 .Where(s => s.FinishedAt != null)
@@ -84,7 +96,6 @@
                          .ToList()
             )).ToList();
 
-            // 2. Викликаємо ML
             if (historyItems.Any()) {
                 rules = await MlService.GetMiningRulesAsync(historyItems);
             }

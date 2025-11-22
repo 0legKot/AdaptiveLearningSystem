@@ -53,7 +53,6 @@ public class TestEngineService {
         return nextQuestion;
     }
 
-    // 3. Обробка відповіді
     public async Task SubmitAnswerAsync(Guid sessionId, Guid questionId, int optionIndex, int timeSpentMs, int focusLost) {
         var session = await _db.TestSessions.Include(s => s.User).FirstOrDefaultAsync(s => s.Id == sessionId);
         var question = await _db.Questions.FindAsync(questionId);
@@ -62,7 +61,6 @@ public class TestEngineService {
 
         bool isCorrect = question.CorrectOptionIndex == optionIndex;
 
-        // А. Зберігаємо лог
         var log = new AnswerLog {
             Id = Guid.NewGuid(),
             SessionId = sessionId,
@@ -73,25 +71,36 @@ public class TestEngineService {
         };
         _db.AnswerLogs.Add(log);
 
-        // Б. Викликаємо ML: Перерахунок знань (BKT)
-        // 1. Знаходимо поточний стан теми
         var state = await _db.UserTopicStates
             .FirstOrDefaultAsync(s => s.UserId == session.UserId && s.TopicName == question.Topic);
 
         if (state == null) {
-            state = new UserTopicState { UserId = session.UserId, TopicName = question.Topic, AbilityTheta = 0.0 };
+            state = new UserTopicState { UserId = session.UserId, TopicName = question.Topic, AbilityTheta = 0.5 };
             _db.UserTopicStates.Add(state);
         }
 
-        // 2. Python рахує нову Theta
-        double newTheta = await _mlService.PredictKnowledgeAsync(state.AbilityTheta, isCorrect);
+        int optionsCount = 4;
+        if (!string.IsNullOrEmpty(question.OptionsJson)) {
+            try {
+                var opts = System.Text.Json.JsonSerializer.Deserialize<List<string>>(question.OptionsJson);
+                optionsCount = opts?.Count ?? 4;
+            } catch { }
+        }
+
+        double newTheta = await _mlService.PredictKnowledgeAsync(
+            state.AbilityTheta,
+            isCorrect,
+            question.Difficulty,
+            optionsCount,
+            question.Topic
+        );
+
         state.AbilityTheta = newTheta;
         state.LastUpdated = DateTime.Now;
 
-        // В. Викликаємо ML: Анти-Чіт
         bool isSuspicious = await _mlService.IsSuspiciousBehaviorAsync(timeSpentMs, focusLost);
         if (isSuspicious) {
-            session.IsSuspicious = true; // Помічаємо всю сесію як підозрілу
+            session.IsSuspicious = true;
         }
 
         await _db.SaveChangesAsync();
