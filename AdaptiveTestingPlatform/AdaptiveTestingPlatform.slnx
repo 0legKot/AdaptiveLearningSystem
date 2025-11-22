@@ -1,0 +1,6 @@
+<Solution>
+  <Project Path="AdaptiveTesting.DataSeeder/AdaptiveTesting.DataSeeder.csproj" />
+  <Project Path="AdaptiveTesting.Domain/AdaptiveTesting.Domain.csproj" />
+  <Project Path="AdaptiveTesting.Infrastructure/AdaptiveTesting.Infrastructure.csproj" />
+  <Project Path="AdaptiveTesting.Web/AdaptiveTesting.Web.csproj" />
+</Solution>
