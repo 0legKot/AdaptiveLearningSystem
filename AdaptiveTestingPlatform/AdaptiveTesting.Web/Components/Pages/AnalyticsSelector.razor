@@ -1,32 +1,47 @@
-﻿@page "/analytics-selector"
+﻿@page "/teacher/analytics-selector"
 @using AdaptiveTesting.Domain.Entities
+@using AdaptiveTesting.Domain.Interfaces
 @using AdaptiveTesting.Infrastructure.Persistence
 @using Microsoft.EntityFrameworkCore
 @inject AppDbContext Db
 @inject NavigationManager Nav
+@inject IMlService MlService
+@inject NotificationService NotificationService
 @rendermode InteractiveServer
 
 <div class="container mt-4">
     <RadzenCard>
-        <h3>📊 Оберіть студента для перегляду звіту</h3>
-        <p class="text-muted">Тут ви можете переглянути результати ML-аналізу для будь-якого користувача.</p>
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <div>
+                <h3>📊 Список студентів</h3>
+                <p class="text-muted">Оберіть студента для перегляду звіту або запустіть ML-кластеризацію.</p>
+            </div>
+            <RadzenButton Text="Run AI Clustering (K-Means)" Icon="group_work"
+                          ButtonStyle="ButtonStyle.Secondary"
+                          Click="RunClustering" IsBusy="@isBusy" />
+        </div>
 
         <RadzenDataGrid Data="@users" TItem="User" AllowPaging="true" PageSize="10" AllowSorting="true">
             <Columns>
                 <RadzenDataGridColumn Property="FullName" Title="Ім'я" />
-                <RadzenDataGridColumn Property="Role" Title="ML Cluster (Прогноз)" Width="200px">
+
+                <RadzenDataGridColumn Property="ClusterLabel" Title="ML Cluster (Live)" Width="200px">
                     <Template Context="user">
                         @if (user.ClusterLabel == 0) {
-                            <span class="badge bg-danger">Cheater</span>
+                            <span class="badge bg-danger">Cluster 0 (Risk)</span>
                         } else if (user.ClusterLabel == 1) {
 
-                            <span class="badge bg-warning text-dark">Junior</span>
+                            <span class="badge bg-warning text-dark">Cluster 1 (Avg)</span>
+                        } else if (user.ClusterLabel == 2) {
+
+                            <span class="badge bg-success">Cluster 2 (Top)</span>
                         } else {
 
-                            <span class="badge bg-success">Senior</span>
+                            <span class="badge bg-secondary">Unknown</span>
                         }
                     </Template>
                 </RadzenDataGridColumn>
+
                 <RadzenDataGridColumn Title="" Width="160px">
                     <Template Context="user">
                         <RadzenButton Text="Звіт" Icon="assessment" ButtonStyle="ButtonStyle.Info"
@@ -40,9 +55,57 @@
 
 @code {
     List<User> users = new();
+    bool isBusy = false;
 
     protected override async Task OnInitializedAsync() {
+        await LoadUsers();
+    }
+
+    async Task LoadUsers() {
         users = await Db.Users.OrderBy(u => u.FullName).ToListAsync();
+    }
+
+    async Task RunClustering() {
+        isBusy = true;
+        try {
+            // 1. Збираємо статистику по кожному студенту
+            var rawStats = await Db.TestSessions
+                .Include(s => s.Answers)
+                .GroupBy(s => s.UserId)
+                .Select(g => new {
+                    UserId = g.Key,
+                    // Середній час на питання (ms)
+                    AvgTime = g.SelectMany(s => s.Answers).Average(a => a.TimeSpentMs),
+                    // Середній бал (0.0 - 1.0)
+                    AvgScore = g.SelectMany(s => s.Answers).Count(a => a.IsCorrect) / (double)g.SelectMany(s => s.Answers).Count()
+                })
+                .ToListAsync();
+
+            // 2. Формуємо DTO
+            var clusterData = rawStats.Select(x => new StudentClusterData(x.UserId, x.AvgTime, x.AvgScore)).ToList();
+
+            if (!clusterData.Any()) {
+                NotificationService.Notify(NotificationSeverity.Info, "Info", "Немає даних для кластеризації");
+                return;
+            }
+
+            // 3. Відправляємо в Python
+            var results = await MlService.ClusterStudentsAsync(clusterData);
+
+            // 4. Оновлюємо базу
+            foreach (var u in users) {
+                if (results.ContainsKey(u.Id)) {
+                    u.ClusterLabel = results[u.Id];
+                }
+            }
+
+            await Db.SaveChangesAsync();
+            NotificationService.Notify(NotificationSeverity.Success, "Success", $"Кластеризовано {results.Count} студентів.");
+        } catch (Exception ex) {
+            NotificationService.Notify(NotificationSeverity.Error, "Error", ex.Message);
+        } finally {
+            isBusy = false;
+        }
     }
 
     void OpenDashboard(Guid userId) {

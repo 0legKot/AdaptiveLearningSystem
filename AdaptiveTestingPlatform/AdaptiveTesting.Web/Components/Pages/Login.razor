@@ -1,0 +1,68 @@
+﻿@page "/"
+@using AdaptiveTesting.Domain.Entities
+@using AdaptiveTesting.Infrastructure.Persistence
+@using AdaptiveTesting.Infrastructure.Services
+@using Microsoft.EntityFrameworkCore
+@inject AppDbContext Db
+@inject UserSessionService Session
+@inject NavigationManager Nav
+@rendermode InteractiveServer
+
+<div class="container mt-5">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <RadzenCard class="p-5 text-center mb-4 bg-light">
+                <h1 class="display-4 mb-3">🎓 Adaptive Testing Platform</h1>
+                <p class="lead">Система адаптивного тестування з елементами Machine Learning.</p>
+                
+                <div class="d-flex justify-content-center gap-3 mt-4">
+                    <RadzenButton Text="Увійти як Викладач" Icon="school" 
+                                  ButtonStyle="ButtonStyle.Secondary" Size="ButtonSize.Large"
+                                  Click="LoginTeacher" />
+                </div>
+            </RadzenCard>
+
+            <RadzenCard>
+                <h4 class="mb-3">Вхід для студентів (Simulation)</h4>
+                <RadzenDataGrid Data="@users" TItem="User" AllowPaging="true" PageSize="5" AllowSorting="true">
+                    <Columns>
+                        <RadzenDataGridColumn Property="FullName" Title="Ім'я" />
+                        <RadzenDataGridColumn Property="Role" Title="Профіль" Width="200px">
+                            <Template Context="user">
+                                <RadzenBadge BadgeStyle="BadgeStyle.Info" Text="@user.Role" />
+                            </Template>
+                        </RadzenDataGridColumn>
+                        <RadzenDataGridColumn Title="" Width="120px">
+                            <Template Context="user">
+                                <RadzenButton Text="Увійти" ButtonStyle="ButtonStyle.Primary" Size="ButtonSize.Small" 
+                                              Click="@(() => LoginStudent(user))" />
+                            </Template>
+                        </RadzenDataGridColumn>
+                    </Columns>
+                </RadzenDataGrid>
+            </RadzenCard>
+        </div>
+    </div>
+</div>
+
+@code {
+    List<User> users = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        // Показуємо тільки студентів, щоб список був чистим
+        users = await Db.Users.Where(u => u.Role == "Student").OrderBy(u => u.FullName).ToListAsync();
+    }
+
+    void LoginStudent(User user)
+    {
+        Session.LoginStudent(user);
+        Nav.NavigateTo($"/dashboard/{user.Id}"); // Студент одразу бачить свій прогрес
+    }
+
+    void LoginTeacher()
+    {
+        Session.LoginAsTeacher();
+        Nav.NavigateTo("/teacher/monitor");
+    }
+}

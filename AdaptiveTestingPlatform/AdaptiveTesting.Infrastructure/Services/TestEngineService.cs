@@ -32,11 +32,7 @@ public class TestEngineService {
             .Select(l => l.QuestionId)
             .ToListAsync();
 
-        // --- FIX: Зупиняємо тест після 10 питань ---
-        if (answeredIds.Count >= 10) {
-            return null; // Це сигнал для UI, що тест завершено
-        }
-        // -------------------------------------------
+        if (answeredIds.Count >= 10) return null;
 
         var userState = await _db.UserTopicStates
             .Where(s => s.UserId == userId)
@@ -45,10 +41,39 @@ public class TestEngineService {
 
         double currentTheta = userState?.AbilityTheta ?? 0.0;
 
-        var nextQuestion = await _db.Questions
-            .Where(q => !answeredIds.Contains(q.Id))
-            .OrderBy(q => Math.Abs(q.Difficulty - currentTheta))
+        // --- NLP LOGIC START ---
+        // Перевіряємо, чи остання відповідь була неправильною
+        var lastLog = await _db.AnswerLogs
+            .Include(a => a.Question)
+            .Where(l => l.SessionId == sessionId)
+            .OrderByDescending(l => l.Id) // Останній запис
             .FirstOrDefaultAsync();
+
+        Question? nextQuestion = null;
+
+        if (lastLog != null && !lastLog.IsCorrect && lastLog.Question != null) {
+            // Якщо помилився -> шукаємо схоже питання через Python (NLP)
+            var candidates = await _db.Questions
+                .Where(q => !answeredIds.Contains(q.Id))
+                .Select(q => new Domain.Interfaces.QuestionCandidate(q.Id, q.Text))
+                .ToListAsync();
+
+            // Викликаємо ML
+            var similarId = await _mlService.FindSimilarQuestionAsync(lastLog.Question.Text, candidates);
+
+            if (similarId.HasValue) {
+                nextQuestion = await _db.Questions.FindAsync(similarId.Value);
+            }
+        }
+        // --- NLP LOGIC END ---
+
+        // Якщо NLP нічого не знайшов або відповідь була правильною -> стандартна логіка (по складності)
+        if (nextQuestion == null) {
+            nextQuestion = await _db.Questions
+                .Where(q => !answeredIds.Contains(q.Id))
+                .OrderBy(q => Math.Abs(q.Difficulty - currentTheta))
+                .FirstOrDefaultAsync();
+        }
 
         return nextQuestion;
     }

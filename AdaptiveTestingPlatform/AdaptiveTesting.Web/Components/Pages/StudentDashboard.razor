@@ -97,35 +97,99 @@
                 </RadzenCard>
             </div>
         </div>
-
-        <div class="row">
+        <div class="row mb-4">
             <div class="col-12">
                 <RadzenCard>
-                    <h4 class="mb-3">💡 Персональні рекомендації (NLP Content-Based)</h4>
-                    <div class="list-group">
-                        @foreach (var rec in stats.Recommendations) {
-                            <div class="list-group-item">
-                                @((MarkupString)MarkdownToHtml(rec))
+                    <h5 class="mb-3">Що впливає на вашу оцінку? (Random Forest Analysis)</h5>
+                    <div class="row">
+                        <div class="col-md-4 d-flex align-items-center justify-content-center">
+                            <div class="text-muted text-center">
+                                <p>Ми використали алгоритм <strong>Random Forest Regressor</strong>, щоб визначити вагу кожного фактора успішності.</p>
+                                <p class="small">Аналіз показує, що найбільший вплив має <span class="fw-bold text-primary">@GetTopFactor()</span>.</p>
                             </div>
-                        }
+                        </div>
+                        <div class="col-md-8">
+                            @if (stats.FeatureImportance.Any()) {
+                                <RadzenChart Style="height: 250px">
+                                    <RadzenPieSeries Data="@stats.FeatureImportance" CategoryProperty="Key" ValueProperty="Value" Title="Важливість" Fills="@(new[] { "#4f46e5", "#10b981", "#f59e0b" })">
+                                        <RadzenSeriesDataLabels Visible="true" />
+                                    </RadzenPieSeries>
+                                    <RadzenLegend Position="LegendPosition.Right" />
+                                </RadzenChart>
+                            } else {
+                                <RadzenProgressBar Mode="ProgressBarMode.Indeterminate" />
+                            }
+                        </div>
                     </div>
                 </RadzenCard>
             </div>
         </div>
+
+        <div class="row">
+            <div class="col-12">
+                <h4 class="mb-3 ms-1">💡 Персональні рекомендації (NLP & Rule-Based)</h4>
+            </div>
+
+            @foreach (var rec in stats.Recommendations) {
+                // Парсимо тип рекомендації для стилізації
+                var isWarning = rec.Contains("⚠️");
+                var isSuccess = rec.Contains("✅");
+                var icon = isWarning ? "warning" : (isSuccess ? "check_circle" : "info");
+                var borderClass = isWarning ? "border-warning" : (isSuccess ? "border-success" : "border-info");
+                var bgClass = isWarning ? "bg-warning-subtle" : (isSuccess ? "bg-success-subtle" : "bg-info-subtle");
+
+                // Витягуємо тему (всередині **...**)
+                var topic = System.Text.RegularExpressions.Regex.Match(rec, @"\*\*(.*?)\*\*").Groups[1].Value;
+                if (string.IsNullOrEmpty(topic)) topic = "Загальні поради";
+
+                <div class="col-md-4 mb-3">
+                    <RadzenCard Class="@($"h-100 {borderClass} border-top-0 border-end-0 border-bottom-0 border-4 shadow-sm")">
+                        <div class="d-flex align-items-start">
+                            <RadzenIcon Icon="@icon" Class="me-3 fs-3" Style="@(isWarning ? "color: #d97706" : (isSuccess ? "color: #059669" : "color: #0ea5e9"))" />
+                            <div>
+                                <h6 class="fw-bold mb-1">@topic</h6>
+                                <p class="text-muted small mb-3">
+                                    @((MarkupString)CleanText(rec))
+                                </p>
+                                @if (!isSuccess) {
+                                    <RadzenButton Text="Вивчити тему" Size="ButtonSize.ExtraSmall" ButtonStyle="ButtonStyle.Light" Class="w-100" />
+                                }
+                            </div>
+                        </div>
+                    </RadzenCard>
+                </div>
+            }
+        </div>
+
     }
 </div>
 
 @code {
     [Parameter] public Guid UserId { get; set; }
-    private StudentDashboardDto? stats;
     Dictionary<string, double> factors = new();
+    private StudentDashboardDto? stats;
 
     protected override async Task OnInitializedAsync() {
         stats = await Analytics.GetStudentStatsAsync(UserId);
-        factors = await MlService.GetFeatureImportanceAsync();
     }
 
     private string MarkdownToHtml(string text) {
         return text.Replace("**", "<strong>").Replace("⚠️", "<span class='text-danger'>⚠️</span>").Replace("✅", "<span class='text-success'>✅</span>");
+    }
+
+    string GetTopFactor() {
+        if (stats?.FeatureImportance == null || !stats.FeatureImportance.Any()) return "Невідомий фактор";
+
+        return stats.FeatureImportance.OrderByDescending(x => x.Value).FirstOrDefault().Key switch {
+            "TimeSpent" => "Час на відповідь",
+            "FocusLost" => "Втрата концентрації",
+            "CurrentScore" => "Поточна успішність",
+            _ => "Інше"
+        };
+    }
+
+    // Очищає текст від маркдауну для виводу в картку
+    string CleanText(string text) {
+        return text.Replace("**", "").Replace("⚠️", "").Replace("✅", "").Replace("ℹ️", "").Trim();
     }
 }

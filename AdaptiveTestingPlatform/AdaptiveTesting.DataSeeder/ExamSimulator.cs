@@ -46,7 +46,7 @@ public class ExamSimulator {
 
             var userStates = new Dictionary<string, UserTopicState>();
 
-            for (int s = 0; s < 20; s++) {
+            for (int s = 0; s < 50; s++) {
                 var session = new TestSession {
                     Id = Guid.NewGuid(),
                     UserId = user.Id,
@@ -82,7 +82,7 @@ public class ExamSimulator {
 
                             isCorrect = _rnd.NextDouble() < prob;
 
-                            timeSpent = _rnd.Next(15000, 60000);
+                            timeSpent = _rnd.Next(15000, 45000);
 
                             if (q.Difficulty > 0) timeSpent += _rnd.Next(5000, 15000);
                         }

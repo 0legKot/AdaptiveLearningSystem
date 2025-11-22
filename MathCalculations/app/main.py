@@ -2,6 +2,7 @@ from fastapi import FastAPI
 from app.schemas import *
 from app.services.adaptive import calculate_bkt
 from app.services.anticheat import detector
+from app.services.cluster import clustering
 from app.services.mining import mine_rules
 from app.services.nlp import find_similar_question
 from app.services.prediction import predictor
@@ -53,9 +54,13 @@ def endpoint_prediction(data: PredictionData):
     )
     return {"predicted_score": score}
 
-@app.get("/prediction/factors-importance")
-def endpoint_factors():
-    return predictor.get_feature_importance()
+@app.post("/prediction/factors-importance")
+def endpoint_factors(data: PredictionData):
+    return predictor.explain_prediction(
+        data.avg_time_per_question,
+        data.current_score_percent,
+        data.focus_lost_count
+    )
 
 @app.post("/analytics/analyze-questions")
 def endpoint_question_quality(questions: List[QuestionStatsRequest]):
@@ -63,17 +68,8 @@ def endpoint_question_quality(questions: List[QuestionStatsRequest]):
     return quality_analyzer.analyze(data)
 
 @app.post("/analytics/cluster-students")
-def endpoint_clustering(students: List[ClusteringRequest]):
-    if not students: return []
-    df = pd.DataFrame([s.model_dump() for s in students])
-    scaler = StandardScaler()
-    scaled = scaler.fit_transform(df[['avg_time', 'avg_score']])
-    kmeans = KMeans(n_clusters=3, random_state=42, n_init=10).fit(scaled)
-
-    results = []
-    for i, row in df.iterrows():
-        results.append({"student_id": row['student_id'], "cluster_id": int(kmeans.labels_[i])})
-    return results
+def endpoint_factors(students: List[ClusteringRequest]):
+    return clustering(students)
 
 
 if __name__ == "__main__":

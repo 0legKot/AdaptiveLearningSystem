@@ -49,10 +49,13 @@ public class AnalyticsService {
 
         int predictedScore = await _mlService.PredictFinalScoreAsync(avgTime, currentAvgScore, totalFocusLost);
 
+        var features = await _mlService.GetFeatureImportanceAsync(avgTime, currentAvgScore, totalFocusLost);
+
         return new StudentDashboardDto {
             StudentName = user?.FullName ?? "Unknown",
             ClusterLabel = user?.ClusterLabel ?? -1,
             PredictedScore = predictedScore,
+            FeatureImportance = features, 
             Skills = skills,
             RecentSessions = sessions.Take(5).Select(s => new SessionSummaryDto {
                 Date = s.StartedAt,
@@ -90,6 +93,7 @@ public class StudentDashboardDto {
     public List<SkillDto> Skills { get; set; }
     public List<SessionSummaryDto> RecentSessions { get; set; }
     public List<string> Recommendations { get; set; }
+    public Dictionary<string, double> FeatureImportance { get; set; } = new();
 }
 
 public class SkillDto {

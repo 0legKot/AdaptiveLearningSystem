@@ -18,7 +18,7 @@ public class QuestionSeeder {
         var dbQuestions = new List<Question>();
 
         foreach (var q in questions) {
-
+            if (!q.correct_answers.Any(x => x.Value == "true")) continue;
             var (options, correctIndex) = ParseOptions(q);
 
             dbQuestions.Add(new Question {
@@ -48,7 +48,7 @@ public class QuestionSeeder {
 
         var stop = false;
         using var client = new HttpClient();
-        client.DefaultRequestHeaders.Add("X-Api-Key", "ogx5YdVabzOaQIGA6yshBl6wR8qMz1jMfTCN7KtV");
+        client.DefaultRequestHeaders.Add("X-Api-Key", "y0yye4hILNxANZdhfVfObxMMkb4rchLuCfPCsXOC");
         while (!stop) {
             try {
                 var url = "https://quizapi.io/api/v1/questions?limit=20";

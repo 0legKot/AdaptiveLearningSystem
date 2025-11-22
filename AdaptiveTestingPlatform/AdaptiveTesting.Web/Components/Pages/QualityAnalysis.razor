@@ -9,7 +9,6 @@
 
 <div class="container mt-4">
     <div class="d-flex align-items-center mb-4">
-        <RadzenButton Icon="arrow_back" ButtonStyle="ButtonStyle.Light" Click="@(() => Nav.NavigateTo("/teacher/monitor"))" Class="me-3" />
         <div>
             <h2 class="mb-0">🧠 AI Quality Control: Аналіз питань</h2>
             <small class="text-muted">Кластеризація питань (K-Means) для виявлення аномалій складності.</small>
@@ -33,7 +32,7 @@
                 <RadzenCard>
                     <RadzenDataGrid Data="@viewModels" TItem="QualityViewModel" AllowSorting="true" AllowPaging="true" PageSize="10">
                         <Columns>
-                            <RadzenDataGridColumn Property="Topic" Title="Тема" Width="120px">
+                            <RadzenDataGridColumn Property="Topic" Title="Тема" Width="160px">
                                 <Template Context="q">
                                     <RadzenBadge BadgeStyle="BadgeStyle.Light" Text="@q.Topic" class="text-dark" />
                                 </Template>
@@ -45,9 +44,15 @@
                                 </Template>
                             </RadzenDataGridColumn>
 
-                            <RadzenDataGridColumn Property="Difficulty" Title="Difficulty" Width="100px" TextAlign="TextAlign.Center">
+                            <RadzenDataGridColumn Property="Difficulty" Title="Difficulty" Width="110px" TextAlign="TextAlign.Center">
                                 <Template Context="q">
-                                    @q.Difficulty.ToString("F1")
+                                    @if (q.Difficulty <= -1.0) {
+                                        <RadzenBadge BadgeStyle="BadgeStyle.Success" Text="Easy" IsPill="true" />
+                                    } else if (q.Difficulty >= 1.0) {
+                                        <RadzenBadge BadgeStyle="BadgeStyle.Danger" Text="Hard" IsPill="true" />
+                                    } else {
+                                        <RadzenBadge BadgeStyle="BadgeStyle.Warning" Text="Medium" IsPill="true" />
+                                    }
                                 </Template>
                             </RadzenDataGridColumn>
 

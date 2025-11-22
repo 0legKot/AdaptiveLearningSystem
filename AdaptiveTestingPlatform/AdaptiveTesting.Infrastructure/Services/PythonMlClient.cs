@@ -61,10 +61,21 @@ public class PythonMlClient : IMlService {
         } catch { return 0; }
     }
 
-    public async Task<Dictionary<string, double>> GetFeatureImportanceAsync() {
+    public async Task<Dictionary<string, double>> GetFeatureImportanceAsync(double avgTime, double currentScore, int focusLost) {
         try {
-            return await _httpClient.GetFromJsonAsync<Dictionary<string, double>>("/prediction/factors-importance") ?? new();
-        } catch { return new(); }
+            var payload = new {
+                avg_time_per_question = avgTime,
+                current_score_percent = currentScore,
+                focus_lost_count = focusLost
+            };
+
+            // Змінили GET на POST
+            var response = await _httpClient.PostAsJsonAsync("/prediction/factors-importance", payload);
+            return await response.Content.ReadFromJsonAsync<Dictionary<string, double>>() ?? new();
+        } catch {
+            // Fallback: повертаємо дефолтні значення, якщо ML недоступний
+            return new Dictionary<string, double> { { "TimeSpent", 0.3 }, { "FocusLost", 0.3 }, { "CurrentScore", 0.4 } };
+        }
     }
 
     public async Task<Guid?> FindSimilarQuestionAsync(string failedText, List<QuestionCandidate> candidates) {

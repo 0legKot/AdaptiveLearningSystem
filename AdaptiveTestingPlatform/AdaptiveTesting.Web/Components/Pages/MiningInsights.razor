@@ -5,73 +5,92 @@
 @inject AppDbContext Db
 @inject IMlService MlService
 @inject NavigationManager Nav
+@inject TooltipService TooltipService
 @rendermode InteractiveServer
 
 <div class="container mt-4">
-    <div class="d-flex align-items-center mb-4">
-        <RadzenButton Icon="arrow_back" ButtonStyle="ButtonStyle.Light" Click="@(() => Nav.NavigateTo("/teacher/monitor"))" Class="me-3" />
+    <div class="d-flex align-items-center justify-content-between mb-4">
         <div>
-            <h2 class="mb-0">🧠 Data Mining: Пошук прихованих зв'язків</h2>
-            <small class="text-muted">Використання алгоритму <strong>Apriori</strong> (Metric: Lift > 1.1).</small>
+            <h2 class="mb-0">🧠 Приховані закономірності (AI Insights)</h2>
+            <small class="text-muted">Аналіз типових ланцюжків помилок студентів.</small>
+        </div>
+        <div>
+            @if (rules != null) {
+                <RadzenBadge BadgeStyle="BadgeStyle.Info" Text="@($"Знайдено важливих правил: {rules.Count}")" class="fs-5" />
+            }
         </div>
     </div>
 
     @if (isLoading) {
         <div class="text-center mt-5">
-            <RadzenProgressBar Mode="ProgressBarMode.Indeterminate" />
-            <p class="mt-2">ML-модель аналізує історію відповідей...</p>
+            <div class="spinner-border text-primary" role="status" style="width: 3rem; height: 3rem;"></div>
+            <p class="mt-3 text-muted">Аналізуємо історію тестування...</p>
         </div>
     } else if (rules == null || !rules.Any()) {
-        <RadzenCard class="text-center p-5">
-            <RadzenIcon Icon="search_off" Style="font-size: 4rem" class="text-muted mb-3" />
-            <h4>Асоціацій не знайдено</h4>
-            <p>Спробуйте накопичити більше даних (пройдіть більше тестів).</p>
+        <RadzenCard class="text-center p-5 bg-light border-0">
+            <RadzenIcon Icon="done_all" Style="font-size: 4rem; color: #28a745;" class="mb-3" />
+            <h4 class="text-muted">Явних патернів помилок не виявлено</h4>
+            <p>Студенти помиляються хаотично, стійких залежностей поки немає.</p>
         </RadzenCard>
     } else {
         <div class="row">
-            <div class="col-md-12">
-                <RadzenCard>
-                    <RadzenDataGrid Data="@rules" TItem="MiningRule" AllowSorting="true" ColumnWidth="200px">
-                        <Columns>
-                            <RadzenDataGridColumn Property="rule" Title="Правило (Якщо -> То)" Width="400px">
-                                <Template Context="r">
-                                    <span style="font-size: 1.1em; font-weight: 500;">@r.rule</span>
-                                </Template>
-                            </RadzenDataGridColumn>
+            @foreach (var rule in rules) {
+                var parts = rule.rule.Split("->");
+                var fromTopic = parts.Length > 0 ? parts[0].Trim() : "?";
+                var toTopic = parts.Length > 1 ? parts[1].Trim() : "?";
 
-                            <RadzenDataGridColumn Property="lift" Title="Lift (Сила)" Width="120px">
-                                <Template Context="r">
-                                    <RadzenBadge BadgeStyle="BadgeStyle.Secondary" Text="@r.lift.ToString("F2")" />
-                                </Template>
-                            </RadzenDataGridColumn>
+                string strengthLabel;
+                string strengthStyle;
 
-                            <RadzenDataGridColumn Property="confidence" Title="Confidence" Width="150px">
-                                <Template Context="r">
-                                    <div class="d-flex align-items-center">
-                                        <RadzenProgressBar Value="@(r.confidence * 100)" Max="100" ShowValue="false" Style="height: 10px; width: 60px; margin-right: 10px" />
-                                        <span>@((r.confidence * 100).ToString("F0"))%</span>
-                                    </div>
-                                </Template>
-                            </RadzenDataGridColumn>
+                if (rule.lift > 2.0) {
+                    strengthLabel = "🔥 Критичний зв'язок";
+                    strengthStyle = "border-danger border-2";
+                } else if (rule.lift > 1.5) {
+                    strengthLabel = "⚡ Сильний зв'язок";
+                    strengthStyle = "border-warning border-2";
+                } else {
+                    strengthLabel = "🔗 Помірний зв'язок";
+                    strengthStyle = "border-info";
+                }
 
-                            <RadzenDataGridColumn Property="support" Title="Support" Width="100px">
-                                <Template Context="r">
-                                    @((r.support * 100).ToString("F1"))%
-                                </Template>
-                            </RadzenDataGridColumn>
-                        </Columns>
-                    </RadzenDataGrid>
-                </RadzenCard>
-            </div>
-        </div>
+                <div class="col-md-6 col-lg-4 mb-4">
+                    <RadzenCard class="@($"h-100 shadow-sm {strengthStyle}")" Style="position: relative;">
 
-        <div class="alert alert-info mt-4">
-            <strong>Як читати метрики:</strong>
-            <ul>
-                <li><strong>Lift > 1:</strong> Позитивна кореляція (теми пов'язані).</li>
-                <li><strong>Confidence:</strong> Ймовірність того, що правило спрацює.</li>
-                <li><strong>Support:</strong> Як часто це трапляється серед усіх студентів.</li>
-            </ul>
+                        <div class="position-absolute top-0 end-0 m-2">
+                            <RadzenBadge BadgeStyle="BadgeStyle.Light" Text="@strengthLabel" class="text-dark fw-normal" />
+                        </div>
+
+                        <div class="mt-4 d-flex align-items-center justify-content-center mb-3 text-center">
+                            <div class="fw-bold p-2 bg-light rounded border" style="min-width: 90px;">@fromTopic</div>
+                            <RadzenIcon Icon="double_arrow" class="mx-2 text-muted" />
+                            <div class="fw-bold p-2 bg-danger-subtle rounded border border-danger text-danger" style="min-width: 90px;">@toTopic</div>
+                        </div>
+
+                        <hr class="my-3 opacity-25" />
+
+                        <div class="d-flex justify-content-around text-center">
+                            <div title="Ймовірність того, що правило справдиться">
+                                <div class="small text-muted text-uppercase">Ймовірність</div>
+                                <div class="fw-bold text-primary fs-4">
+                                    @((rule.confidence * 100).ToString("F0"))%
+                                </div>
+                            </div>
+
+                            <div title="У скільки разів частіше це стається, ніж просто випадково">
+                                <div class="small text-muted text-uppercase">Сила (Lift)</div>
+                                <div class="fw-bold text-dark fs-4">
+                                    @rule.lift.ToString("F1")x
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="mt-3 p-2 bg-light rounded small text-center text-muted">
+                            "Студент, який не знає <strong>@fromTopic</strong>, майже гарантовано провалить <strong>@toTopic</strong>."
+                        </div>
+
+                    </RadzenCard>
+                </div>
+            }
         </div>
     }
 </div>
@@ -97,7 +116,15 @@
             )).ToList();
 
             if (historyItems.Any()) {
-                rules = await MlService.GetMiningRulesAsync(historyItems);
+                var rawRules = await MlService.GetMiningRulesAsync(historyItems);
+
+                // ФІЛЬТРАЦІЯ: Прибираємо сміття, залишаємо тільки значущі правила
+                // Confidence > 50% (частіше так, ніж ні)
+                // Lift > 1.2 (не випадковість)
+                rules = rawRules
+                    .Where(r => r.confidence > 0.5 && r.lift > 1.2)
+                    .OrderByDescending(r => r.lift)
+                    .ToList();
             }
         } catch (Exception ex) {
             Console.WriteLine($"Error: {ex.Message}");

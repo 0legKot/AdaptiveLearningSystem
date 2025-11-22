@@ -8,7 +8,7 @@ public interface IMlService {
 
     Task<int> PredictFinalScoreAsync(double avgTime, double currentScore, int focusLost);
 
-    Task<Dictionary<string, double>> GetFeatureImportanceAsync();
+    Task<Dictionary<string, double>> GetFeatureImportanceAsync(double avgTime, double currentScore, int focusLost);
 
     Task<Guid?> FindSimilarQuestionAsync(string failedQuestionText, List<QuestionCandidate> candidates);
 

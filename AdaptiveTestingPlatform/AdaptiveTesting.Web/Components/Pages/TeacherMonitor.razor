@@ -12,11 +12,6 @@
     <div class="d-flex justify-content-between align-items-center mb-4">
         <h2>👨‍🏫 Панель Викладача (Real-time)</h2>
         <div>
-            <RadzenButton Text="🔍 Data Mining Insights" ButtonStyle="ButtonStyle.Info"
-                          Click="@(() => Nav.NavigateTo("/teacher/mining"))"
-                          class="me-2" Icon="psychology" />
-            <RadzenButton Text="Quality Check" Icon="fact_check" ButtonStyle="ButtonStyle.Warning"
-                          Click="@(() => Nav.NavigateTo("/teacher/quality"))" class="me-2" />
             <RadzenButton Text="Експорт звіту" Icon="get_app" ButtonStyle="ButtonStyle.Success" Click="DownloadReport" />
         </div>
     </div>
@@ -42,7 +37,7 @@
         </div>
     </div>
 
-    <RadzenDataGrid Data="@sessions" TItem="SessionMonitorDto" AllowSorting="true" AllowPaging="true" PageSize="15">
+    <RadzenDataGrid Data="@sessions" TItem="SessionMonitorDto" AllowSorting="true" AllowPaging="true" PageSize="10">
         <Columns>
             <RadzenDataGridColumn Property="StudentName" Title="Студент" Width="200px" />
             <RadzenDataGridColumn Title="Статус" Width="120px">

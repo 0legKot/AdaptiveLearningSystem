@@ -33,31 +33,24 @@ class QuestionQualityAnalyzer:
 
         df = pd.DataFrame(questions)
 
-        # Нормалізація часу (Time), щоб він був у діапазоні 0-1, як і ErrorRate
-        # Припускаємо, що макс час ~60000мс
         df['time_scaled'] = df['avg_time_spent'] / 60000.0
         df['time_scaled'] = df['time_scaled'].clip(0, 1)
 
-        X = df[['difficulty_declared', 'error_rate', 'time_scaled']]
+        # FIX: Додали .values, щоб прибрати UserWarning
+        X = df[['difficulty_declared', 'error_rate', 'time_scaled']].values
 
-        # ВИКОРИСТАННЯ МОДЕЛІ
-        # Ми не перенавчаємо (fit), ми тільки передбачаємо (predict) на основі знань з __init__
         labels = self.kmeans.predict(X)
 
         results = []
         for i, label in enumerate(labels):
             row = df.iloc[i]
 
-            # Інтерпретація результату моделі
             if label == self.anomaly_cluster_idx:
                 status = "Anomaly: High Error Rate on Easy Question"
             elif label == self.hard_cluster_idx:
                 status = "Hard Question (Normal)"
             else:
                 status = "Normal"
-
-            # Можна додати 'distance to center', щоб знайти граничні випадки,
-            # але для диплома достатньо самого факту приналежності до кластера.
 
             results.append({
                 "question_id": row['question_id'],
