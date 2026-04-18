@@ -20,7 +20,7 @@ if (reCreateQ) {
 }
 if (reCreateQ || simulate) {
     var simulator = new ExamSimulator(db);
-    await simulator.RunSimulationAsync(studentCount: 40);
+    await simulator.RunSimulationAsync(studentCount: 100);
     Console.WriteLine("Exam seeding finished");
 }
 
