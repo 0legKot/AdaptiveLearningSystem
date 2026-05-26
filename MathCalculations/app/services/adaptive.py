@@ -17,7 +17,7 @@ def calculate_bkt(p_known: float, is_correct: bool, difficulty: float, total_opt
     # P(Learn) - Ймовірність переходу зі стану "Не знаю" в "Знаю"
 
     topic_learning_rates = {
-        "HTML": 0.25,
+        "Представлення": 0.25,
         "CSS": 0.25,
         "SQL": 0.20,
         "Docker": 0.15,

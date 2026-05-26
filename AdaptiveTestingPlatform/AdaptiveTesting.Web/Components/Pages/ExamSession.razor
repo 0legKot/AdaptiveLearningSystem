@@ -42,11 +42,11 @@
 
                         <div>
                             @if (currentQuestion.Difficulty <= -1.0) {
-                                <RadzenBadge BadgeStyle="BadgeStyle.Success" Text="EASY" />
+                                <RadzenBadge BadgeStyle="BadgeStyle.Success" Text="Легкий" />
                             } else if (currentQuestion.Difficulty >= 1.0) {
-                                <RadzenBadge BadgeStyle="BadgeStyle.Danger" Text="HARD" />
+                                <RadzenBadge BadgeStyle="BadgeStyle.Danger" Text="Важкий" />
                             } else {
-                                <RadzenBadge BadgeStyle="BadgeStyle.Warning" Text="MEDIUM" />
+                                <RadzenBadge BadgeStyle="BadgeStyle.Warning" Text="Серднiй" />
                             }
                         </div>
                     </div>

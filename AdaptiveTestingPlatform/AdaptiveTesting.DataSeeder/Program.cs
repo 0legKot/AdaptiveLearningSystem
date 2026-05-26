@@ -9,8 +9,8 @@ using var db = new AppDbContext(optionsBuilder.Options);
 
 await db.Database.EnsureCreatedAsync();
 
-var reCreateQ = true;
-var simulate = true;
+var reCreateQ = false;
+var simulate = false;
 
 Console.WriteLine("STARTING SEEDING...");
 if (reCreateQ) {
@@ -20,7 +20,7 @@ if (reCreateQ) {
 }
 if (reCreateQ || simulate) {
     var simulator = new ExamSimulator(db);
-    await simulator.RunSimulationAsync(studentCount: 100);
+    await simulator.RunSimulationAsync(studentCount: 10);
     Console.WriteLine("Exam seeding finished");
 }
 

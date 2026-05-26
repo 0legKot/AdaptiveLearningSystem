@@ -38,7 +38,7 @@ public class ExamSimulator {
 
             var user = new User {
                 Id = Guid.NewGuid(),
-                FullName = $"{_faker.Name.FullName()} ({arch.Role})",
+                FullName = $"{_faker.Name.FullName()}",
                 Role = "Student",
                 ClusterLabel = clusterLabel
             };
@@ -67,7 +67,7 @@ public class ExamSimulator {
 
                         isCorrect = !q.Text.Contains("[ANOMALY]") && _rnd.NextDouble() > 0.01;
                         timeSpent = _rnd.Next(2000, 5000);
-                        focusLost = _rnd.Next(1, 6);
+                        focusLost = _rnd.Next(1, 2);
                     } else {
                         if (q.Text.Contains("[ANOMALY]")) {
 

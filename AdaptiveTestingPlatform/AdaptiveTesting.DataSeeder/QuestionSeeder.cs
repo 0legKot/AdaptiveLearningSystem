@@ -17,24 +17,25 @@ public class QuestionSeeder {
 
         var dbQuestions = new List<Question>();
 
-        foreach (var q in questions) {
+        foreach (var q in questions.Where(q=> "Представлення" == MapTopic(q.tags.FirstOrDefault()?.name)).Take(20)) {
             if (!q.correct_answers.Any(x => x.Value == "true")) continue;
             var (options, correctIndex) = ParseOptions(q);
-
+            var topic = MapTopic(q.tags.FirstOrDefault()?.name);
+            if (topic != "Представлення") continue;
             dbQuestions.Add(new Question {
                 Id = Guid.NewGuid(),
                 Text = q.question,
-                Topic = MapTopic(q.tags.FirstOrDefault()?.name),
+                Topic = topic,
                 Difficulty = q.difficulty switch { "Easy" => -1.5, "Hard" => 1.5, _ => 0.0 },
                 OptionsJson = JsonSerializer.Serialize(options),
                 CorrectOptionIndex = correctIndex
             });
         }
-        for (int i = 0; i < 5; i++) {
-            var anomaly = dbQuestions.First(x => x.Difficulty > 1);
-            anomaly.Text = "[ANOMALY] " + anomaly.Text;
-            anomaly.Difficulty = -2.0;
-        }
+        //for (int i = 0; i < 5; i++) {
+        //    var anomaly = dbQuestions.First(x => x.Difficulty > 1);
+        //    anomaly.Text = "[ANOMALY] " + anomaly.Text;
+        //    anomaly.Difficulty = -2.0;
+        //}
 
         await _db.Questions.AddRangeAsync(dbQuestions);
         await _db.SaveChangesAsync();
@@ -46,21 +47,21 @@ public class QuestionSeeder {
         if (!File.Exists(CacheFile)) await File.WriteAllTextAsync(CacheFile, "[]");
         list = JsonSerializer.Deserialize<List<QuizApiQuestion>>(await File.ReadAllTextAsync(CacheFile)) ?? [];
 
-        var stop = false;
-        using var client = new HttpClient();
-        client.DefaultRequestHeaders.Add("X-Api-Key", "y0yye4hILNxANZdhfVfObxMMkb4rchLuCfPCsXOC");
-        while (!stop) {
-            try {
-                var url = "https://quizapi.io/api/v1/questions?limit=20";
-                var newQ = await client.GetFromJsonAsync<List<QuizApiQuestion>>(url);
-                if (newQ != null) {
-                    list = list.Concat(newQ).DistinctBy(x => x.id).ToList();
-                }
-            } catch {
-                stop = true;
-                Console.WriteLine("API limit reached, using cache only."); 
-            }
-        }
+        //var stop = false;
+        //using var client = new HttpClient();
+        //client.DefaultRequestHeaders.Add("X-Api-Key", "y0yye4hILNxANZdhfVfObxMMkb4rchLuCfPCsXOC");
+        //while (!stop) {
+        //    try {
+        //        var url = "https://quizapi.io/api/v1/questions?limit=20";
+        //        var newQ = await client.GetFromJsonAsync<List<QuizApiQuestion>>(url);
+        //        if (newQ != null) {
+        //            list = list.Concat(newQ).DistinctBy(x => x.id).ToList();
+        //        }
+        //    } catch {
+        //        stop = true;
+        //        Console.WriteLine("API limit reached, using cache only."); 
+        //    }
+        //}
         await File.WriteAllTextAsync(CacheFile, JsonSerializer.Serialize(list));
         Console.WriteLine($"Fetched {list.Count} questions");
         return list;
@@ -73,7 +74,7 @@ public class QuestionSeeder {
 
         if (t.Contains("sql") || t.Contains("db") || t.Contains("mysql") || t.Contains("postgres")) return "Database";
         if (t.Contains("docker") || t.Contains("kube") || t.Contains("linux") || t.Contains("bash") || t.Contains("devops")) return "DevOps";
-        if (t.Contains("html") || t.Contains("css") || t.Contains("js") || t.Contains("react") || t.Contains("vue") || t.Contains("frontend")) return "Frontend";
+        if (t.Contains("html") || t.Contains("css") || t.Contains("js") || t.Contains("react") || t.Contains("vue") || t.Contains("frontend")) return "Представлення";
         if (t.Contains("php") || t.Contains("laravel") || t.Contains("wordpress")) return "Backend_PHP";
         if (t.Contains("c#") || t.Contains(".net") || t.Contains("java") || t.Contains("spring")) return "Backend_Enterprise";
 

@@ -39,7 +39,7 @@
         <div class="row">
             <div class="col-md-7 mb-4">
                 <RadzenCard>
-                    <h4 class="mb-3">Карта навичок (Skill Map)</h4>
+                    <h4 class="mb-3">Карта навичок</h4>
                     @if (stats.Skills.Any()) {
                         <RadzenChart Style="height: 400px">
                             <RadzenBarSeries Data="@stats.Skills"
@@ -63,25 +63,25 @@
 
             <div class="col-md-5 mb-4">
                 <RadzenCard class="h-100">
-                    <h4 class="mb-3">Профіль ML</h4>
+                    <h4 class="mb-3">Профіль</h4>
 
                     <div class="alert alert-info">
-                        <strong>AI Cluster (K-Means):</strong>
+                        <strong>Тип студента:</strong>
                         @if (stats.ClusterLabel == 0) {
-                            <span>Підозріла активність (Cheater pattern)</span>
+                            <span>Підозріла активність</span>
                         } else if (stats.ClusterLabel == 1) {
 
-                            <span>Початківець (Junior pattern)</span>
+                            <span>Початківець</span>
                         } else if (stats.ClusterLabel == 2) {
 
-                            <span>Експерт (Senior pattern)</span>
+                            <span>Експерт</span>
                         } else {
 
                             <span>Не визначено</span>
                         }
                     </div>
 
-                    <h5 class="mt-4">Останні сесії (Isolation Forest)</h5>
+                    @* <h5 class="mt-4">Останні сесії (Isolation Forest)</h5>
                     <ul class="list-group">
                         @foreach (var session in stats.RecentSessions) {
                             <li class="list-group-item d-flex justify-content-between align-items-center">
@@ -93,14 +93,14 @@
                                 }
                             </li>
                         }
-                    </ul>
+                    </ul> *@
                 </RadzenCard>
             </div>
         </div>
         <div class="row mb-4">
             <div class="col-12">
                 <RadzenCard>
-                    <h5 class="mb-3">Що впливає на вашу оцінку? (Random Forest Analysis)</h5>
+                    <h5 class="mb-3">Що впливає на вашу оцінку?</h5>
                     <div class="row">
                         <div class="col-md-4 d-flex align-items-center justify-content-center">
                             <div class="text-muted text-center">
@@ -110,8 +110,20 @@
                         </div>
                         <div class="col-md-8">
                             @if (stats.FeatureImportance.Any()) {
+                                var newDict = new Dictionary<string, double>();
+                                foreach (var item in stats.FeatureImportance.Keys)
+                                {
+                                    var newText = item switch {
+                                        "TimeSpent" => "Час на відповідь",
+                                        "FocusLost" => "Втрата концентрації",
+                                        "CurrentScore" => "Поточна успішність",
+                                        _ => "Інше"
+                                    };
+                                    newDict[newText] = stats.FeatureImportance[item];
+                                }
+                               
                                 <RadzenChart Style="height: 250px">
-                                    <RadzenPieSeries Data="@stats.FeatureImportance" CategoryProperty="Key" ValueProperty="Value" Title="Важливість" Fills="@(new[] { "#4f46e5", "#10b981", "#f59e0b" })">
+                                    <RadzenPieSeries Data="@newDict" CategoryProperty="Key" ValueProperty="Value" Title="Важливість" Fills="@(new[] { "#4f46e5", "#10b981", "#f59e0b" })">
                                         <RadzenSeriesDataLabels Visible="true" />
                                     </RadzenPieSeries>
                                     <RadzenLegend Position="LegendPosition.Right" />
@@ -127,7 +139,7 @@
 
         <div class="row">
             <div class="col-12">
-                <h4 class="mb-3 ms-1">💡 Персональні рекомендації (NLP & Rule-Based)</h4>
+                <h4 class="mb-3 ms-1">💡 Персональні рекомендації </h4>
             </div>
 
             @foreach (var rec in stats.Recommendations) {
